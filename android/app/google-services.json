@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "13641119064",
+    "project_id": "alertchain-54335",
+    "storage_bucket": "alertchain-54335.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:13641119064:android:c2c791e0d44620c94fa12d",
+        "android_client_info": {
+          "package_name": "com.example.alertchain"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyApy34-dSrUOT8-mE1sWiQ1nV74wqMIgKk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

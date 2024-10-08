@@ -1,4 +1,11 @@
+import 'package:alertchain/views/admin_dashboard_page.dart';
+import 'package:alertchain/views/user_dashboard_page.dart';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:crypto/crypto.dart';
+import 'dart:convert';
+
+import '../models/user.dart';
 
 class AuthPage extends StatefulWidget {
   @override
@@ -6,8 +13,84 @@ class AuthPage extends StatefulWidget {
 }
 
 class _AuthPageState extends State<AuthPage> {
-  final TextEditingController _usernameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  Future<void> _login() async {
+    // Retrieve the email and password
+    String email = _emailController.text.trim();
+    String password = _passwordController.text.trim();
+
+    // Encode the password using SHA-256
+    String passwordHash = sha256.convert(utf8.encode(password)).toString();
+
+    try {
+      // Query Firestore to find the user with the matching email and password hash
+      QuerySnapshot userSnapshot = await _firestore
+          .collection('users')
+          .where('email', isEqualTo: email)
+          .where('password', isEqualTo: passwordHash)
+          .get();
+
+      // Check if the user exists
+      if (userSnapshot.docs.isNotEmpty) {
+        // Successfully logged in
+        var userData = userSnapshot.docs.first.data() as Map<String, dynamic>;
+        String currentUserID =
+            userSnapshot.docs.first.id; // Get the document ID
+
+        // Create User object using the factory constructor
+        User currentUser = User.fromFirestore(userData, currentUserID);
+
+        if (currentUser.isSuperAdmin) {
+          // Navigate to the Admin Dashboard if user is SuperAdmin
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => AdminDashboardPage(
+                currentUser: currentUser, // Pass the complete User object
+              ),
+            ),
+          );
+        } else if (currentUser.isAdmin) {
+          // Navigate to the Admin Dashboard if user is Admin
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => AdminDashboardPage(
+                currentUser: currentUser, // Pass the complete User object
+              ),
+            ),
+          );
+        } else {
+          // Navigate to the User Dashboard (you will need to create this page)
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+                builder: (context) =>
+                    UserDashboardPage()), // Placeholder for user dashboard
+          );
+        }
+      } else {
+        // Show an error message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Invalid email or password.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      // Handle errors
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error logging in.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -29,15 +112,14 @@ class _AuthPageState extends State<AuthPage> {
               ),
               SizedBox(height: 20), // Space between logo and form
 
-              // Username TextField
+              // Email TextField
               TextField(
-                controller: _usernameController,
+                controller: _emailController,
                 decoration: InputDecoration(
-                  labelText: 'Username',
-                  hintText: 'Enter your username',
+                  labelText: 'Email', // Label for the email field
+                  hintText: 'Enter your email', // Hint text updated to email
                   filled: true,
                   fillColor: Color(0xFFF5F5F5), // Light Gray for the background
-                  // Customizing border with different styles
                   enabledBorder: OutlineInputBorder(
                     borderRadius:
                         BorderRadius.circular(12.0), // Rounded corners
@@ -60,11 +142,10 @@ class _AuthPageState extends State<AuthPage> {
                 controller: _passwordController,
                 obscureText: true,
                 decoration: InputDecoration(
-                  labelText: 'Password',
-                  hintText: 'Enter your password',
+                  labelText: 'Password', // Label for the password field
+                  hintText: 'Enter your password', // Hint text remains the same
                   filled: true,
                   fillColor: Color(0xFFF5F5F5), // Light Gray for the background
-                  // Customizing border with different styles
                   enabledBorder: OutlineInputBorder(
                     borderRadius:
                         BorderRadius.circular(12.0), // Rounded corners
@@ -87,12 +168,7 @@ class _AuthPageState extends State<AuthPage> {
                 width: 150, // Set a width for the button
                 height: 50, // Customize height
                 child: ElevatedButton(
-                  onPressed: () {
-                    // TODO: Implement login functionality
-                    String username = _usernameController.text;
-                    String password = _passwordController.text;
-                    print('Username: $username, Password: $password');
-                  },
+                  onPressed: _login, // Call the login function
                   style: ElevatedButton.styleFrom(
                     backgroundColor:
                         Color(0xFFF33638), // Use primary color for the button
@@ -101,11 +177,14 @@ class _AuthPageState extends State<AuthPage> {
                           BorderRadius.circular(20.0), // Rounded corners
                     ),
                   ),
-                  child: Text('Log In',
-                      style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white)), // Customize text style
+                  child: Text(
+                    'Log In',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ), // Customize text style
+                  ),
                 ),
               ),
             ],
