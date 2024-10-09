@@ -1,4 +1,6 @@
 import 'package:alertchain/helpers/string_helper.dart';
+import 'package:alertchain/models/alert.dart';
+import 'package:alertchain/widgets/alert_card.dart';
 import 'package:alertchain/widgets/app_drawer.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart'; // Import Firestore
@@ -18,14 +20,15 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
   String organizationName = ''; // To store the organization name
   bool isToggleActive = false; // To manage the toggle state
   double buttonScale = 1.0; // Scale factor for the button
-  List<String> currentAlerts = []; // To store current alerts
+  List<Alert> currentAlerts = []; // Update to store Alert objects
+
   List<User> certifiedEmployees = []; // To store certified employees
 
   @override
   void initState() {
     super.initState();
     fetchOrganizationName(); // Fetch organization info when page loads
-    fetchCurrentAlerts(); // Fetch current alerts
+    listenForCurrentAlerts(); // Start listening for current alerts
     fetchCertifiedEmployees(); // Fetch certified employees
   }
 
@@ -56,21 +59,23 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
     }
   }
 
-  // Method to fetch current alerts
-  Future<void> fetchCurrentAlerts() async {
-    try {
-      QuerySnapshot alertsSnapshot = await FirebaseFirestore.instance
-          .collection('alerts')
-          .where('organizationID', isEqualTo: widget.currentUser.organizationID)
-          .get();
-
+  // Method to listen for current alerts in real-time
+  void listenForCurrentAlerts() {
+    FirebaseFirestore.instance
+        .collection('alerts')
+        .where('organizationID', isEqualTo: widget.currentUser.organizationID)
+        .orderBy('timestamp', descending: true) // Order by timestamp
+        .snapshots()
+        .listen((snapshot) {
+      // Update current alerts whenever there are changes
       setState(() {
-        currentAlerts =
-            alertsSnapshot.docs.map((doc) => doc['message'] as String).toList();
+        currentAlerts = snapshot.docs
+            .map((doc) => Alert.fromFirestore(doc.data()))
+            .toList();
       });
-    } catch (e) {
-      print('Error fetching alerts: $e');
-    }
+    }, onError: (error) {
+      print('Error listening for alerts: $error');
+    });
   }
 
   // Method to fetch certified employees
@@ -97,9 +102,22 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
     }
   }
 
-  // Logic to send a notification to all users
-  void sendNotification() {
-    // Removed Snackbar as requested
+  Future<void> sendAlert() async {
+    try {
+      // Create a new notification document in Firestore for the whole organization
+      await FirebaseFirestore.instance.collection('alerts').add({
+        'organizationID': widget.currentUser.organizationID,
+        'timestamp': FieldValue.serverTimestamp(), // Use server timestamp
+        'senderID': widget.currentUser.id,
+        'senderDepartmentName': widget.currentUser.departmentName,
+        'senderFirstName': widget.currentUser.firstName,
+        'senderLastName': widget.currentUser.lastName,
+      });
+
+      print('Notification sent for the whole organization.');
+    } catch (e) {
+      print('Error sending notification: $e');
+    }
   }
 
   // Function to show confirmation dialog
@@ -114,7 +132,7 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
           TextButton(
             onPressed: () {
               Navigator.of(context).pop(); // Close dialog
-              sendNotification(); // Send notification after confirmation
+              sendAlert(); // Send notification after confirmation
             },
             child: Text('Yes'),
           ),
@@ -127,26 +145,28 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
     );
   }
 
-  // Function to build an avatar
-  Widget buildAvatar(User employee) {
+  Widget buildUserAvatar({
+    required String firstName,
+    required String lastName,
+    required String? profilePictureUrl,
+    double radius = 40,
+  }) {
     return Tooltip(
-      message:
-          '${capitalize(employee.firstName)} ${capitalize(employee.lastName)}',
+      message: '${capitalize(firstName)} ${capitalize(lastName)}',
       child: CircleAvatar(
-        radius: 40, // Increased radius for bigger circles
-        backgroundImage: employee.profilePictureUrl != null &&
-                employee.profilePictureUrl.isNotEmpty
-            ? NetworkImage(employee.profilePictureUrl)
-            : null,
-        backgroundColor: Colors
-            .blueAccent, // Default background color when no profile picture
-        child: employee.profilePictureUrl == null ||
-                employee.profilePictureUrl.isEmpty
+        radius: radius,
+        backgroundImage:
+            (profilePictureUrl != null && profilePictureUrl.isNotEmpty)
+                ? NetworkImage(profilePictureUrl)
+                : null,
+        backgroundColor: Colors.blueAccent,
+        child: (profilePictureUrl == null || profilePictureUrl.isEmpty)
             ? Text(
-                '${capitalize(employee.firstName[0])}${capitalize(employee.lastName[0])}', // Use initials
+                '${capitalize(firstName[0])}${capitalize(lastName[0])}', // Use initials
                 style: TextStyle(
-                    fontSize: 20,
-                    color: Colors.white), // Updated font size and color
+                  fontSize: 20, // Smaller font size for alert avatars
+                  color: Colors.white,
+                ),
               )
             : null,
       ),
@@ -168,167 +188,172 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
         organizationName:
             organizationName, // Pass the retrieved organization name
       ),
-      body: AnimatedContainer(
-        duration:
-            Duration(milliseconds: 200), // Smooth background color transition
-        color: Colors.white, // Set the background color to default white
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.start,
-          children: [
-            // Instructions section inside a grey bubble
-            Container(
-              width: double.infinity,
-              padding: EdgeInsets.all(16.0),
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(12.0),
-              ),
-              child: Text(
-                'Please follow the instructions carefully before pressing the button.',
-                style: TextStyle(fontSize: 16, color: Colors.black87),
-                textAlign: TextAlign.center,
-              ),
-            ),
-            SizedBox(height: 30), // Space between instruction and button
-
-            // Big Red Button with feedback animation
-            GestureDetector(
-              onTapDown: (_) {
-                setState(() {
-                  buttonScale = 0.95; // Scale down on tap
-                });
-              },
-              onTapUp: (_) {
-                setState(() {
-                  buttonScale = 1.0; // Scale back to original size
-                });
-                if (isToggleActive) {
-                  sendNotification(); // Send notification if toggle is active
-                } else {
-                  showConfirmationDialog(); // Show confirmation if toggle is off
-                }
-              },
-              onTapCancel: () {
-                setState(() {
-                  buttonScale = 1.0; // Reset scale if tap is canceled
-                });
-              },
-              child: Transform.scale(
-                scale:
-                    buttonScale, // Apply scale transformation for center scaling
-                child: Container(
-                  padding: EdgeInsets.symmetric(
-                      vertical: 40 * sizeRatio,
-                      horizontal: 60 *
-                          sizeRatio), // Increased padding for a larger button
-                  decoration: BoxDecoration(
-                    color: Colors.red[700], // Dark red for an intense look
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black
-                            .withOpacity(0.2), // Subtle shadow color
-                        spreadRadius: 2, // How much the shadow spreads
-                        blurRadius: 6, // Blur radius for softness
-                        offset: Offset(0, 4), // Offset for the shadow
-                      ),
-                    ],
+      body: SingleChildScrollView(
+        child: AnimatedContainer(
+          duration:
+              Duration(milliseconds: 200), // Smooth background color transition
+          color: Colors.white, // Set the background color to default white
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.start,
+            children: [
+              // Current Alerts Section
+              if (widget.currentUser.isManager ||
+                  widget.currentUser.isCertified ||
+                  true) ...[
+                Text(
+                  'Current Alerts',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                SizedBox(height: 10),
+                if (currentAlerts.isEmpty) ...[
+                  Text(
+                    'No current alerts in $organizationName.',
+                    style: TextStyle(fontSize: 16, color: Colors.grey),
                   ),
-                  child: Text(
-                    'SEND\nALERT',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize:
-                          32 * sizeRatio, // Increased font size for visibility
-                      fontWeight: FontWeight.bold,
-                      height: 1.2, // Adjust line height for better spacing
+                ] else ...[
+                  Container(
+                    height: 142, // Set a fixed height for the horizontal list
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: currentAlerts.length,
+                      itemBuilder: (context, index) {
+                        return Padding(
+                          padding: const EdgeInsets.only(
+                              right: 16.0), // Spacing between cards
+                          child: AlertCard(
+                              alert: currentAlerts[index]), // Build alert card
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ],
+              SizedBox(height: 15),
+              // Instructions section inside a grey bubble
+              Container(
+                width: double.infinity,
+                padding: EdgeInsets.all(16.0),
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(12.0),
+                ),
+                child: Text(
+                  'Please follow the instructions carefully before pressing the button.',
+                  style: TextStyle(fontSize: 16, color: Colors.black87),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              SizedBox(height: 30), // Space between instruction and button
+
+              // Big Red Button with feedback animation
+              GestureDetector(
+                onTapDown: (_) {
+                  setState(() {
+                    buttonScale = 0.95; // Scale down on tap
+                  });
+                },
+                onTapUp: (_) {
+                  setState(() {
+                    buttonScale = 1.0; // Scale back to original size
+                  });
+                  if (isToggleActive) {
+                    sendAlert(); // Send notification if toggle is active
+                  } else {
+                    showConfirmationDialog(); // Show confirmation if toggle is off
+                  }
+                },
+                onTapCancel: () {
+                  setState(() {
+                    buttonScale = 1.0; // Reset scale if tap is canceled
+                  });
+                },
+                child: Transform.scale(
+                  scale:
+                      buttonScale, // Apply scale transformation for center scaling
+                  child: Container(
+                    padding: EdgeInsets.symmetric(
+                        vertical: 40 * sizeRatio,
+                        horizontal: 60 *
+                            sizeRatio), // Increased padding for a larger button
+                    decoration: BoxDecoration(
+                      color: Colors.red[700], // Dark red for an intense look
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black
+                              .withOpacity(0.2), // Subtle shadow color
+                          spreadRadius: 2, // How much the shadow spreads
+                          blurRadius: 6, // Blur radius for softness
+                          offset: Offset(0, 4), // Offset for the shadow
+                        ),
+                      ],
+                    ),
+                    child: Text(
+                      'SEND\nALERT',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 32 *
+                            sizeRatio, // Increased font size for visibility
+                        fontWeight: FontWeight.bold,
+                        height: 1.2, // Adjust line height for better spacing
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
 
-            SizedBox(height: 30), // Space between button and toggle section
+              SizedBox(height: 30), // Space between button and toggle section
 
-            // Toggle Section
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Expanded(
-                  child: Text(
-                    'I understand that pressing the button will notify every certified user',
-                    style: TextStyle(fontSize: 14),
+              // Toggle Section
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: Text(
+                      'I understand that pressing the button will notify every certified user',
+                      style: TextStyle(fontSize: 14),
+                    ),
                   ),
-                ),
-                Switch(
-                  value: isToggleActive,
-                  onChanged: (bool value) {
-                    setState(() {
-                      isToggleActive = value; // Update toggle state
-                    });
-                  },
-                  activeColor: Colors.green, // Toggle color when active
-                  inactiveThumbColor: Colors.grey, // Toggle color when inactive
-                ),
-              ],
-            ),
-
-            SizedBox(height: 30), // Space between toggle and alerts section
-
-            // Current Alerts Section
-            if (widget.currentUser.isManager ||
-                widget.currentUser.isCertified) ...[
+                  Switch(
+                    value: isToggleActive,
+                    onChanged: (bool value) {
+                      setState(() {
+                        isToggleActive = value; // Update toggle state
+                      });
+                    },
+                    activeColor: Colors.green, // Toggle color when active
+                    inactiveThumbColor:
+                        Colors.grey, // Toggle color when inactive
+                  ),
+                ],
+              ),
               Text(
-                'Current Alerts',
+                'Certified Employees in $organizationName',
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
-              SizedBox(height: 10), // Space between title and alerts
-              if (currentAlerts.isEmpty) ...[
-                Text(
-                  'No current alerts in $organizationName.',
-                  style: TextStyle(fontSize: 16, color: Colors.grey),
+              SizedBox(height: 10), // Space between title and employee list
+              Container(
+                height: 80, // Set a fixed height for the scrolling list
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: certifiedEmployees.length,
+                  itemBuilder: (context, index) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                      child: buildUserAvatar(
+                        firstName: certifiedEmployees[index].firstName,
+                        lastName: certifiedEmployees[index].lastName,
+                        profilePictureUrl:
+                            certifiedEmployees[index].profilePictureUrl,
+                      ),
+                    );
+                  },
                 ),
-              ] else ...[
-                Column(
-                  children: currentAlerts
-                      .map((alert) => Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 4.0),
-                            child: Text(
-                              alert,
-                              style: TextStyle(fontSize: 16),
-                            ),
-                          ))
-                      .toList(),
-                ),
-              ],
-            ],
-
-            SizedBox(
-                height:
-                    30), // Space between alerts and certified employees section
-
-            // Certified Employees Section
-            Text(
-              'Certified Employees in $organizationName',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 10), // Space between title and employee list
-            Container(
-              height: 80, // Set a fixed height for the scrolling list
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: certifiedEmployees.length,
-                itemBuilder: (context, index) {
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                    child: buildAvatar(certifiedEmployees[index]),
-                  );
-                },
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
