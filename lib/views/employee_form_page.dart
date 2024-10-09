@@ -34,8 +34,7 @@ class _EmployeeFormPageState extends State<EmployeeFormPage> {
       lastNameController.text = widget.employee!['lastName'] ?? '';
       emailController.text = widget.employee!['email'] ?? '';
       phoneNumberController.text = widget.employee!['phoneNumber'] ?? '';
-      departmentNameController.text = widget.employee!['departmentName'] ??
-          ''; // Initialize department name
+      departmentNameController.text = widget.employee!['departmentName'] ?? '';
     }
   }
 
@@ -45,8 +44,7 @@ class _EmployeeFormPageState extends State<EmployeeFormPage> {
     String lastName = lastNameController.text;
     String email = emailController.text;
     String phoneNumber = phoneNumberController.text;
-    String departmentName =
-        departmentNameController.text; // Get department name
+    String departmentName = departmentNameController.text;
 
     try {
       if (widget.employee == null) {
@@ -57,11 +55,13 @@ class _EmployeeFormPageState extends State<EmployeeFormPage> {
           'organizationID': widget.organizationID,
           'email': email,
           'phoneNumber': phoneNumber,
-          'departmentName': departmentName, // Add department name
+          'departmentName': departmentName,
           'isAdmin': false,
           'isCertified': false,
           'isManager': false,
           'isSuperAdmin': false,
+          'password':
+              '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08', // Temporary password
           // Add any additional fields as necessary
         });
       } else {
@@ -74,7 +74,7 @@ class _EmployeeFormPageState extends State<EmployeeFormPage> {
             FirebaseFirestore.instance.collection('users').doc(employeeId);
         DocumentSnapshot docSnapshot = await docRef.get();
         if (!docSnapshot.exists) {
-          throw Exception("Employee document not found"); // Document not found
+          throw Exception("Employee document not found");
         }
 
         await docRef.update({
@@ -82,7 +82,8 @@ class _EmployeeFormPageState extends State<EmployeeFormPage> {
           'lastName': lastName,
           'email': email,
           'phoneNumber': phoneNumber,
-          'departmentName': departmentName, // Update department name
+          'departmentName': departmentName,
+          // Do not update password when editing
         });
       }
 
@@ -90,11 +91,27 @@ class _EmployeeFormPageState extends State<EmployeeFormPage> {
       widget.onEmployeeUpdated();
       Navigator.of(context).pop(); // Close the page after saving
     } catch (e) {
-      print('Error updating employee: $e'); // Log error for debugging
+      print('Error updating employee: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to update employee: $e')),
       );
     }
+  }
+
+  // Widget to show a role bubble with a specific color and text
+  Widget roleBubble(String label, Color color) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      margin: EdgeInsets.only(right: 8),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+      ),
+    );
   }
 
   @override
@@ -106,7 +123,9 @@ class _EmployeeFormPageState extends State<EmployeeFormPage> {
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Form fields
             TextField(
               controller: firstNameController,
               decoration: InputDecoration(labelText: 'First Name'),
@@ -124,9 +143,32 @@ class _EmployeeFormPageState extends State<EmployeeFormPage> {
               decoration: InputDecoration(labelText: 'Phone Number'),
             ),
             TextField(
-              controller: departmentNameController, // Add department name input
+              controller: departmentNameController,
               decoration: InputDecoration(labelText: 'Department Name'),
             ),
+            // Show roles only if in edit mode
+            if (widget.employee != null) ...[
+              SizedBox(height: 20),
+              Text(
+                'Roles',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey[700],
+                ),
+              ),
+              SizedBox(height: 10),
+              Row(
+                children: [
+                  if (widget.employee!['isCertified'] == true)
+                    roleBubble('Certified', Colors.green),
+                  if (widget.employee!['isManager'] == true)
+                    roleBubble('Manager', Colors.blue),
+                  if (widget.employee!['isAdmin'] == true)
+                    roleBubble('Admin', Colors.yellow),
+                ],
+              ),
+            ],
             SizedBox(height: 20),
             ElevatedButton(
               onPressed: addOrUpdateEmployee, // Call the combined function

@@ -10,6 +10,7 @@ class User {
   final String email;
   final String phoneNumber;
   final String departmentName;
+  final String profilePictureUrl; // New field for profile picture URL
 
   User({
     required this.id,
@@ -23,6 +24,7 @@ class User {
     required this.email,
     required this.phoneNumber,
     required this.departmentName,
+    this.profilePictureUrl = '', // Default value for profile picture URL
   });
 
   // Create a factory constructor to create a User instance from Firestore data
@@ -39,6 +41,8 @@ class User {
       email: data['email'] ?? '',
       phoneNumber: data['phoneNumber'] ?? '',
       departmentName: data['departmentName'] ?? '',
+      profilePictureUrl: data['profilePictureUrl'] ??
+          '', // Extract profile picture URL from Firestore
     );
   }
 }

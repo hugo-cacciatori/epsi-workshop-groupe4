@@ -1,4 +1,5 @@
 // lib/widgets/app_drawer.dart
+import 'package:alertchain/helpers/string_helper.dart';
 import 'package:alertchain/views/auth_page.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart'; // If you need Firestore for logout logic
@@ -28,6 +29,8 @@ class AppDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    var capitalizedFirstName = capitalize(firstName);
+    var capitalizedLastName = capitalize(lastName);
     return Drawer(
       child: Container(
         decoration: BoxDecoration(
@@ -42,7 +45,7 @@ class AppDrawer extends StatelessWidget {
                 color: Color(0xFFF33638), // Red background color
               ),
               accountName: Text(
-                '$firstName $lastName',
+                '$capitalizedFirstName $capitalizedLastName',
                 style: TextStyle(color: Colors.white), // White text on red
               ),
               accountEmail: Text(
@@ -52,7 +55,7 @@ class AppDrawer extends StatelessWidget {
               currentAccountPicture: CircleAvatar(
                 backgroundColor: Colors.white,
                 child: Text(
-                  '${firstName[0]}${lastName[0]}',
+                  '${capitalizedFirstName[0]}${capitalizedLastName[0]}',
                   style: TextStyle(fontSize: 40.0, color: Color(0xFFF33638)),
                 ),
               ),

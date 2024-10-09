@@ -19,6 +19,10 @@ class _AuthPageState extends State<AuthPage> {
 
   Future<void> _login() async {
     // Retrieve the email and password
+    _emailController.text = "lemecdelinfra@cloud.com";
+    // lemecdelinfra@cloud.com
+    // hugo.cacciatori@gmail.com
+    _passwordController.text = "test";
     String email = _emailController.text.trim();
     String password = _passwordController.text.trim();
 
@@ -68,8 +72,9 @@ class _AuthPageState extends State<AuthPage> {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-                builder: (context) =>
-                    UserDashboardPage()), // Placeholder for user dashboard
+                builder: (context) => UserDashboardPage(
+                      currentUser: currentUser,
+                    )), // Placeholder for user dashboard
           );
         }
       } else {

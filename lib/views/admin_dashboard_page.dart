@@ -1,3 +1,4 @@
+import 'package:alertchain/helpers/string_helper.dart';
 import 'package:alertchain/views/employee_form_page.dart';
 import 'package:alertchain/widgets/app_drawer.dart';
 import 'package:flutter/material.dart';
@@ -52,6 +53,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           'email': doc['email'], // Add email
           'phoneNumber': doc['phoneNumber'], // Add phone number
           'departmentName': doc['departmentName'], // Add department name
+          'isCertified': doc['isCertified'] ?? false, // Add isCertified field
+          'isManager': doc['isManager'] ?? false, // Add isManager field
+          'isAdmin': doc['isAdmin'] ?? false, // Add isAdmin field
         };
       }).toList();
     });
@@ -59,6 +63,24 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
   void onEmployeeUpdated() {
     fetchOrganizationData(); // Refresh employee list after add/edit/delete
+  }
+
+  Future<void> toggleField(
+      String employeeId, String field, bool currentValue) async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(employeeId)
+          .update({
+        field: !currentValue, // Toggle the current value
+      });
+      onEmployeeUpdated(); // Refresh the list after toggling
+    } catch (e) {
+      print('Error toggling field: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to toggle field: $e')),
+      );
+    }
   }
 
   @override
@@ -92,7 +114,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Welcome ${widget.currentUser.firstName} ${widget.currentUser.lastName}',
+                    'Welcome ${capitalize(widget.currentUser.firstName)} ${capitalize(widget.currentUser.lastName)}',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     overflow: TextOverflow.visible,
                     maxLines: 1,
@@ -129,12 +151,134 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                               children: [
                                 Expanded(
                                   child: Text(
-                                    '${employee['firstName']} ${employee['lastName']}',
+                                    '${capitalize(employee['firstName'])} ${capitalize(employee['lastName'])}',
                                     style: TextStyle(fontSize: 16),
                                   ),
                                 ),
                                 Row(
                                   children: [
+                                    Tooltip(
+                                      message:
+                                          'Add the role Certified to this employee.',
+                                      child: // Certified Toggle Button
+                                          GestureDetector(
+                                        onTap: () => toggleField(
+                                            employee['id'],
+                                            'isCertified',
+                                            employee['isCertified']),
+                                        child: Container(
+                                          width: 40,
+                                          height: 40,
+                                          decoration: BoxDecoration(
+                                            border: Border.all(
+                                              color: employee['isCertified']
+                                                  ? Colors.green
+                                                  : Colors.greenAccent,
+                                              width: 2,
+                                            ),
+                                            color: employee['isCertified']
+                                                ? Colors.green
+                                                : Colors.transparent,
+                                            borderRadius:
+                                                BorderRadius.circular(8),
+                                          ),
+                                          alignment: Alignment.center,
+                                          child: Text(
+                                            'C',
+                                            style: TextStyle(
+                                              color: employee['isCertified']
+                                                  ? Colors.white
+                                                  : Colors.black,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+
+                                    SizedBox(width: 8), // Space between buttons
+
+                                    // Manager Toggle Button
+                                    Tooltip(
+                                      message:
+                                          "Give the role Manager to this employee.",
+                                      child: GestureDetector(
+                                        onTap: () => toggleField(employee['id'],
+                                            'isManager', employee['isManager']),
+                                        child: Container(
+                                          width: 40,
+                                          height: 40,
+                                          decoration: BoxDecoration(
+                                            border: Border.all(
+                                              color: employee['isManager']
+                                                  ? Colors.blue
+                                                  : Colors.blueAccent,
+                                              width: 2,
+                                            ),
+                                            color: employee['isManager']
+                                                ? Colors.blue
+                                                : Colors.transparent,
+                                            borderRadius:
+                                                BorderRadius.circular(8),
+                                          ),
+                                          alignment: Alignment.center,
+                                          child: Text(
+                                            'M',
+                                            style: TextStyle(
+                                              color: employee['isManager']
+                                                  ? Colors.white
+                                                  : Colors.black,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    SizedBox(width: 8), // Space between buttons
+
+                                    // Admin Toggle Button (only visible for SuperAdmin)
+                                    if (widget.currentUser.isSuperAdmin) ...[
+                                      Tooltip(
+                                        message:
+                                            "Give the role Admin to this employee.",
+                                        child: GestureDetector(
+                                          onTap: () => toggleField(
+                                              employee['id'],
+                                              'isAdmin',
+                                              employee['isAdmin']),
+                                          child: Container(
+                                            width: 40,
+                                            height: 40,
+                                            decoration: BoxDecoration(
+                                              border: Border.all(
+                                                color: employee['isAdmin']
+                                                    ? Colors.yellow
+                                                    : Colors.yellowAccent,
+                                                width: 2,
+                                              ),
+                                              color: employee['isAdmin']
+                                                  ? Colors.yellow
+                                                  : Colors.transparent,
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
+                                            alignment: Alignment.center,
+                                            child: Text(
+                                              'A',
+                                              style: TextStyle(
+                                                color: employee['isAdmin']
+                                                    ? Colors.white
+                                                    : Colors.black,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                    SizedBox(width: 8), // Space between buttons
+
+                                    // Edit Button
                                     Tooltip(
                                       message: 'Edit this employee',
                                       child: IconButton(
@@ -170,7 +314,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                                             builder: (context) => AlertDialog(
                                               title: Text('Confirm Delete'),
                                               content: Text(
-                                                  'Are you sure you want to delete ${employee['firstName']} ${employee['lastName']}?'),
+                                                  'Are you sure you want to delete ${capitalize(employee['firstName'])} ${capitalize(employee['lastName'])}?'),
                                               actions: [
                                                 TextButton(
                                                   onPressed: () {
