@@ -21,8 +21,9 @@ class _AlertCardState extends State<AlertCard> {
   void initState() {
     super.initState();
     _updateTimeAgo(); // Initialize the timeAgo variable
-    _timer = Timer.periodic(Duration(seconds: 30), (Timer timer) {
-      _updateTimeAgo(); // Update the time every 30 seconds
+    // Set up a timer that updates every second
+    _timer = Timer.periodic(Duration(seconds: 1), (Timer timer) {
+      _updateTimeAgo(); // Update the time every second
     });
   }
 
@@ -34,7 +35,8 @@ class _AlertCardState extends State<AlertCard> {
 
   void _updateTimeAgo() {
     setState(() {
-      _timeAgo = calculateTimeAgo(widget.alert.timestamp);
+      _timeAgo = calculateTimeAgo(
+          widget.alert.timestamp); // Update _timeAgo every second
     });
   }
 
@@ -43,17 +45,17 @@ class _AlertCardState extends State<AlertCard> {
     Duration difference = DateTime.now().difference(dateTime);
 
     if (difference.inSeconds < 30) {
-      return 'now'; // Display 'now' if less than 30 seconds
+      return 'now'; // Return 'now' if less than 30 seconds
     } else if (difference.inSeconds < 60) {
-      return '${difference.inSeconds} seconds.'; // Add period
+      return '${difference.inSeconds} seconds ago'; // Update to show seconds
     } else if (difference.inMinutes < 60) {
-      return '${difference.inMinutes} minutes ago.'; // Add period
+      return '${difference.inMinutes} minutes ago'; // Add period
     } else if (difference.inHours < 24) {
-      return '${difference.inHours} hours ago.'; // Add period
+      return '${difference.inHours} hours ago'; // Add period
     } else if (difference.inDays < 30) {
-      return '${difference.inDays} days ago.'; // Add period
+      return '${difference.inDays} days ago'; // Add period
     } else {
-      return '${difference.inDays ~/ 30} months ago.'; // Add period
+      return '${difference.inDays ~/ 30} months ago'; // Add period
     }
   }
 

@@ -1,6 +1,7 @@
 import 'package:alertchain/helpers/string_helper.dart';
 import 'package:alertchain/models/alert.dart';
 import 'package:alertchain/widgets/alert_card.dart';
+import 'package:alertchain/widgets/alert_popup.dart';
 import 'package:alertchain/widgets/app_drawer.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart'; // Import Firestore
@@ -23,6 +24,10 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
   List<Alert> currentAlerts = []; // Update to store Alert objects
 
   List<User> certifiedEmployees = []; // To store certified employees
+
+  Timestamp?
+      latestAlertTimestamp; // Add this to track the latest alert timestamp
+  bool isInitialLoad = true; // New flag to track if it's the initial load
 
   @override
   void initState() {
@@ -64,15 +69,42 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
     FirebaseFirestore.instance
         .collection('alerts')
         .where('organizationID', isEqualTo: widget.currentUser.organizationID)
-        .orderBy('timestamp', descending: true) // Order by timestamp
+        .orderBy('timestamp', descending: true)
         .snapshots()
         .listen((snapshot) {
-      // Update current alerts whenever there are changes
+      List<Alert> newAlerts =
+          snapshot.docs.map((doc) => Alert.fromFirestore(doc.data())).toList();
+
       setState(() {
-        currentAlerts = snapshot.docs
-            .map((doc) => Alert.fromFirestore(doc.data()))
-            .toList();
+        currentAlerts = newAlerts;
       });
+
+      // Get the latest alert's timestamp
+      if (newAlerts.isNotEmpty) {
+        Timestamp alertTimestamp = newAlerts.first.timestamp;
+
+        if (isInitialLoad) {
+          // On initial load, just update the timestamp but do not show the popup
+          latestAlertTimestamp = alertTimestamp;
+          isInitialLoad = false; // Mark that initial load is complete
+        } else if (alertTimestamp.compareTo(latestAlertTimestamp!) > 0) {
+          // Check if it's a new alert after the page load
+          setState(() {
+            latestAlertTimestamp =
+                alertTimestamp; // Update the latest alert timestamp
+          });
+
+          showDialog(
+            context: context,
+            builder: (BuildContext context) {
+              return AlertPopup(
+                  alert: newAlerts.first,
+                  currentUser: widget.currentUser,
+                  certifiedEmployees: certifiedEmployees);
+            },
+          );
+        }
+      }
     }, onError: (error) {
       print('Error listening for alerts: $error');
     });
@@ -104,10 +136,10 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
 
   Future<void> sendAlert() async {
     try {
-      // Create a new notification document in Firestore for the whole organization
       await FirebaseFirestore.instance.collection('alerts').add({
         'organizationID': widget.currentUser.organizationID,
-        'timestamp': FieldValue.serverTimestamp(), // Use server timestamp
+        'timestamp': FieldValue
+            .serverTimestamp(), // Server-side timestamp for consistency
         'senderID': widget.currentUser.id,
         'senderDepartmentName': widget.currentUser.departmentName,
         'senderFirstName': widget.currentUser.firstName,
