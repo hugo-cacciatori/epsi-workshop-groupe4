@@ -3,6 +3,7 @@ import 'package:alertchain/models/alert.dart';
 import 'package:alertchain/widgets/alert_card.dart';
 import 'package:alertchain/widgets/alert_popup.dart';
 import 'package:alertchain/widgets/app_drawer.dart';
+import 'package:alertchain/widgets/confirmation_popup.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart'; // Import Firestore
 import '../models/user.dart'; // Assuming you have a User model
@@ -22,6 +23,7 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
   bool isToggleActive = false; // To manage the toggle state
   double buttonScale = 1.0; // Scale factor for the button
   List<Alert> currentAlerts = []; // Update to store Alert objects
+  Set<String> displayedAlertIds = {}; // Track displayed alert IDs
 
   List<User> certifiedEmployees = []; // To store certified employees
 
@@ -64,7 +66,6 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
     }
   }
 
-  // Method to listen for current alerts in real-time
   void listenForCurrentAlerts() {
     FirebaseFirestore.instance
         .collection('alerts')
@@ -72,8 +73,10 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
         .orderBy('timestamp', descending: true)
         .snapshots()
         .listen((snapshot) {
-      List<Alert> newAlerts =
-          snapshot.docs.map((doc) => Alert.fromFirestore(doc.data())).toList();
+      List<Alert> newAlerts = snapshot.docs
+          .map((doc) =>
+              Alert.fromFirestore(doc)) // Pass the DocumentSnapshot directly
+          .toList();
 
       setState(() {
         currentAlerts = newAlerts;
@@ -94,15 +97,39 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                 alertTimestamp; // Update the latest alert timestamp
           });
 
-          showDialog(
-            context: context,
-            builder: (BuildContext context) {
-              return AlertPopup(
-                  alert: newAlerts.first,
-                  currentUser: widget.currentUser,
-                  certifiedEmployees: certifiedEmployees);
-            },
-          );
+          // Check if the alert has already been displayed
+          if (!displayedAlertIds.contains(newAlerts.first.id)) {
+            displayedAlertIds
+                .add(newAlerts.first.id); // Mark this alert as displayed
+
+            // If the current user is the sender of the alert, show the confirmation popup
+            if (newAlerts.first.senderID == widget.currentUser.id) {
+              showDialog(
+                context: context,
+                builder: (context) {
+                  return ConfirmationPopup(
+                      certifiedEmployees: certifiedEmployees);
+                },
+              );
+            }
+            // If the user is certified or a manager, show the alert popup
+            else if (widget.currentUser.isCertified ||
+                widget.currentUser.isManager) {
+              showDialog(
+                context: context,
+                builder: (context) {
+                  return AlertPopup(
+                    alert: newAlerts.first,
+                    currentUser: widget.currentUser,
+                  );
+                },
+              );
+            }
+            // If the user is not authorized, no popup is shown
+            else {
+              print('Current user is not authorized to view this alert.');
+            }
+          }
         }
       }
     }, onError: (error) {

@@ -19,11 +19,11 @@ class _AuthPageState extends State<AuthPage> {
 
   Future<void> _login() async {
     // Retrieve the email and password
-    _emailController.text = "hugo.cacciatori@gmail.com";
+    // _emailController.text = "hugo.cacciatori@gmail.com";
     // lemecdelinfra@cloud.com // mon user non certifié
     // hugo.cacciatori@gmail.com // mon superadmin
     // certifieduser@gmail.com // mon user certifié
-    _passwordController.text = "test";
+    // _passwordController.text = "test";
     String email = _emailController.text.trim();
     String password = _passwordController.text.trim();
 

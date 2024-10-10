@@ -1,126 +1,112 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/material.dart';
-import 'package:alertchain/models/alert.dart';
 import 'package:alertchain/helpers/string_helper.dart';
+import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:alertchain/models/alert.dart';
 import 'package:alertchain/models/user.dart';
+import 'package:vibration/vibration.dart'; // For vibration
+import 'package:audioplayers/audioplayers.dart'; // For audio playback
 
-class AlertPopup extends StatelessWidget {
+class AlertPopup extends StatefulWidget {
   final Alert alert;
   final User currentUser;
-  final List<User> certifiedEmployees;
 
   AlertPopup({
     required this.alert,
     required this.currentUser,
-    required this.certifiedEmployees,
   });
 
   @override
-  Widget build(BuildContext context) {
-    // Check if the current user is the sender of the alert
-    bool isSentByCurrentUser = alert.senderID == currentUser.id;
+  _AlertPopupState createState() => _AlertPopupState();
+}
 
+class _AlertPopupState extends State<AlertPopup> {
+  late AudioPlayer _audioPlayer; // Player for audio
+  final int _vibrationDuration = 500; // Vibration duration in milliseconds
+
+  @override
+  void initState() {
+    super.initState();
+    _audioPlayer = AudioPlayer();
+    _playAlarmAndVibrate(); // Call the combined method
+  }
+
+  Future<void> _playAlarmAndVibrate() async {
+    await Future.wait([
+      _playAlarmSound(),
+      _vibratePhone(),
+    ]);
+  }
+
+  Future<void> _playAlarmSound() async {
+    await _audioPlayer
+        .setSource(AssetSource('ALARM.wav')); // Ensure the path is correct
+    await _audioPlayer.setVolume(1.0); // Set volume to maximum
+    await _audioPlayer.resume(); // Start playing the sound
+  }
+
+  Future<void> _vibratePhone() async {
+    if (await Vibration.hasVibrator() ?? false) {
+      await Vibration.vibrate(
+          duration: _vibrationDuration); // Vibrate for specified duration
+      await Future.delayed(
+          Duration(milliseconds: 500)); // Delay between vibrations
+      await Vibration.vibrate(duration: _vibrationDuration); // Vibrate again
+    }
+  }
+
+  @override
+  void dispose() {
+    _audioPlayer.dispose(); // Dispose the audio player
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return AlertDialog(
       title: Text(
-        isSentByCurrentUser ? 'Alert Sent Successfully!' : 'ALERT!',
+        'ALERT!',
         style: TextStyle(
-          color: isSentByCurrentUser ? Colors.green : Colors.red,
+          color: Colors.red,
           fontWeight: FontWeight.bold,
         ),
       ),
       content: SingleChildScrollView(
-        // Allows for scrolling content
         child: Column(
-          // Use Column instead of ListView
-          mainAxisSize:
-              MainAxisSize.min, // Allow the column to take minimum height
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            isSentByCurrentUser
-                ? _buildSentByCurrentUserContent()
-                : _buildReceivedAlertContent(),
+            Text(
+              'From: ${capitalize(widget.alert.senderDepartmentName)}',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+            ),
+            SizedBox(height: 10),
+            Text(
+              'Sent by: ${capitalize(widget.alert.senderFirstName)} ${capitalize(widget.alert.senderLastName)}',
+              style: TextStyle(fontSize: 14),
+            ),
+            SizedBox(height: 10),
+            Text(
+              'Time: ${calculateTimeAgo(widget.alert.timestamp)}',
+              style: TextStyle(fontSize: 14),
+            ),
           ],
         ),
       ),
       actions: [
         TextButton(
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () {
+            _audioPlayer.stop(); // Stop sound on close
+            Navigator.of(context).pop();
+          },
           child: Text('Close'),
         ),
       ],
     );
   }
 
-  // Build content for when the alert was sent by the current user
-  Widget _buildSentByCurrentUserContent() {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'You have successfully sent an alert to the following certified employees:',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-        ),
-        SizedBox(height: 10),
-        _buildCertifiedEmployeesList(),
-      ],
-    );
-  }
-
-  // Build a list of certified employees
-  Widget _buildCertifiedEmployeesList() {
-    return Column(
-      // Use Column for list of employees
-      children: certifiedEmployees.map((employee) {
-        return ListTile(
-          leading: CircleAvatar(
-            backgroundImage: (employee.profilePictureUrl != null &&
-                    employee.profilePictureUrl!.isNotEmpty)
-                ? NetworkImage(employee.profilePictureUrl!)
-                : null,
-            backgroundColor: Colors.blueAccent,
-            child: (employee.profilePictureUrl == null ||
-                    employee.profilePictureUrl!.isEmpty)
-                ? Text(
-                    '${capitalize(employee.firstName[0])}${capitalize(employee.lastName[0])}',
-                    style: TextStyle(color: Colors.white),
-                  )
-                : null,
-          ),
-          title: Text(
-              '${capitalize(employee.firstName)} ${capitalize(employee.lastName)}'),
-        );
-      }).toList(),
-    );
-  }
-
-  // Build content for when the alert was received by the current user
-  Widget _buildReceivedAlertContent() {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'From: ${capitalize(alert.senderDepartmentName)} Department',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-        ),
-        SizedBox(height: 10),
-        Text(
-          'Sent by: ${capitalize(alert.senderFirstName)} ${capitalize(alert.senderLastName)}',
-          style: TextStyle(fontSize: 14),
-        ),
-        SizedBox(height: 10),
-        Text(
-          'Time: ${calculateTimeAgo(alert.timestamp)}',
-          style: TextStyle(fontSize: 14),
-        ),
-      ],
-    );
-  }
-
-  // Reusing the time ago calculation method from the AlertCard
+  // Calculate time ago for display
   String calculateTimeAgo(Timestamp timestamp) {
-    DateTime dateTime = timestamp.toDate(); // Convert Timestamp to DateTime
+    DateTime dateTime = timestamp.toDate();
     Duration difference = DateTime.now().difference(dateTime);
 
     if (difference.inSeconds < 30) {
